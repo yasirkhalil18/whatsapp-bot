@@ -3,3 +3,4 @@ twilio==9.0.1
 requests
 beautifulsoup4
 python-dotenv
+gunicorn
