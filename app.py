@@ -5,57 +5,52 @@ from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-# 🛡️ Twilio Auth Token (agar zarurat ho future mein)
-TWILIO_AUTH_TOKEN = "d25140e2b25156f20d43d2ed90ea3b49"
-
 def find_notes_link(query):
     base_url = "https://ainotes.pk"
     query = query.lower()
 
-    # ✅ Class keywords
-    class_keywords = [f'class {i}' for i in range(1, 13)] + [str(i) for i in range(1, 13)] + ['matric', 'inter', 'first year', 'second year']
+    # ✅ Filtered Class List (Only 9 to 12)
+    class_keywords = {
+        "9", "10", "11", "12",
+        "class 9", "class 10", "class 11", "class 12",
+        "ninth", "tenth", "eleventh", "twelfth",
+        "first year", "second year", "matric", "inter"
+    }
 
-    # ✅ Notes-related words
-    notes_keywords = [
-        "notes", "keybook", "key book", "solution", "solved", "important questions", "imp qs",
-        "past papers", "guess paper", "chapter wise", "short questions", "long questions",
-        "mcqs", "questions", "textbook", "book", "summary", "guide", "handout"
-    ]
+    # ✅ Subject + Notes Keywords
+    notes_keywords = {
+        "notes", "keybook", "key book", "solution", "solved", "past papers", "important questions",
+        "short questions", "long questions", "chapter wise", "summary", "guide", "book",
+        "textbook", "guess", "handout", "mcqs", "questions", "review"
+    }
 
-    # ✅ Subjects (with short forms)
-    subjects = [
+    subjects = {
         "english", "eng", "urdu", "islamiat", "isl", "math", "mathematics", "bio", "biology",
         "chem", "chemistry", "phy", "physics", "pak study", "pakstudies", "cs", "computer",
-        "computer science", "science", "eco", "economics", "civics", "edu", "education",
-        "business", "commerce", "accounting", "accounts", "geo", "geography", "history",
-        "sindhi", "pashto", "balochi", "arabic"
-    ]
+        "science", "eco", "economics", "civics", "edu", "education", "business", "commerce",
+        "accounting", "accounts", "geo", "geography", "history", "sindhi", "arabic", "pashto", "balochi"
+    }
 
-    # ✅ Boards
-    boards = [
-        "fbise", "federal", "punjab", "pb", "lahore board", "gujranwala board", "multan board",
-        "kpk", "peshawar board", "bisep", "sindh", "karachi board", "balochistan", "quetta board",
-        "faisalabad board", "rawalpindi board", "sargodha board", "hyderabad board"
-    ]
+    boards = {
+        "fbise", "federal", "punjab", "pb", "lahore", "kpk", "peshawar", "karachi", "sindh",
+        "balochistan", "quetta", "rawalpindi", "multan", "sargodha", "bisep", "gujranwala"
+    }
 
-    # ✅ Combine all keywords
-    all_keywords = class_keywords + notes_keywords + subjects + boards
-
-    # ✅ Filter user message
+    all_keywords = class_keywords | notes_keywords | subjects | boards
     words = query.split()
     filtered = [word for word in words if any(word in kw for kw in all_keywords)]
 
     if not filtered:
         return None
 
-    clean_query = "+".join(filtered)
-    search_url = f"{base_url}/?s={clean_query}"
+    search_query = "+".join(filtered)
+    search_url = f"{base_url}/?s={search_query}"
 
     try:
         res = requests.get(search_url, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # ✅ Flexible selector logic for different site structure
+        # Try different patterns for links
         link_tag = (
             soup.select_one("h2.post-title a") or
             soup.select_one(".post-title a") or
@@ -64,16 +59,18 @@ def find_notes_link(query):
         )
 
         if link_tag:
-            return link_tag['href']
+            title = link_tag.text.strip()
+            link = link_tag['href']
+            return title, link
         else:
-            return None
+            return None, None
     except Exception as e:
-        print("Search Error:", e)
-        return None
+        print("Error while scraping:", e)
+        return None, None
 
 @app.route("/")
 def home():
-    return "✅ WhatsApp Notes Bot is Running!"
+    return "📚 WhatsApp Notes Bot is Running! 🔥"
 
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
@@ -81,15 +78,16 @@ def whatsapp():
     response = MessagingResponse()
     msg = response.message()
 
-    # ✅ If message contains any learning-related keyword
-    if any(kw in incoming_msg for kw in ["notes", "class", "keybook", "solution", "fbise", "punjab", "guess"]):
-        link = find_notes_link(incoming_msg)
+    # ✅ Only trigger search if query contains possible keywords
+    trigger_words = ["class", "notes", "need", "keybook", "solution", "fbise", "punjab"]
+    if any(kw in incoming_msg for kw in trigger_words):
+        title, link = find_notes_link(incoming_msg)
         if link:
-            msg.body(f"✅ Yeh mila mujhe: {link}")
+            msg.body(f"✅ Here's what I found for you:\n📘 {title}\n🔗 {link}")
         else:
-            msg.body("❌ Maaf kijiye, koi relevant notes nahi milay.")
+            msg.body("❌ Sorry! I couldn’t find any relevant notes.\nTry writing clearly like: *Class 9 fbise English notes*")
     else:
-        msg.body("👋 Aap kuch is tarah likhein:\n'I need class 10 fbise english notes'")
+        msg.body("👋 Send a message like:\n*Class 10 punjab physics notes*\nAnd I’ll find it for you!")
 
     return str(response)
 
