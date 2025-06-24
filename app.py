@@ -11,7 +11,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Twilio Auth Token lena (future use ya secure request ke liye)
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_AUTH_TOKEN = os.getenv("d25140e2b25156f20d43d2ed90ea3b49")
 
 # Ye function ainotes.pk se result dhoondhta hai
 def find_notes_link(query):
